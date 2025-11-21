@@ -22,9 +22,7 @@ class CatFactModel(BaseModel):
 class CatImageModel(BaseModel):
     url: HttpUrl = Field(
         ...,
-        description="URL of the cat image",
-        min_length=cfg.min_url_length,
-        max_length=cfg.max_url_length,
+        description="URL of the cat image"
     )
 
     model_config: ConfigDict = ConfigDict(from_attributes=True)
@@ -39,9 +37,7 @@ class CatCombinedModel(BaseModel):
     )
     image_url: HttpUrl = Field(
         ...,
-        description="URL of the cat image",
-        min_length=cfg.min_url_length,
-        max_length=cfg.max_url_length,
+        description="URL of the cat image"
     )
 
     model_config: ConfigDict = ConfigDict(from_attributes=True)

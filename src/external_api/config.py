@@ -8,9 +8,6 @@ class CatConfig:
     min_fact_length: int = 10
     max_fact_length: int = 300
 
-    min_url_length: int = 10
-    max_url_length: int = 300
-
     min_length_value: int = 1
     max_length_value: int = 10000
 
