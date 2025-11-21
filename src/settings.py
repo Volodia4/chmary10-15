@@ -5,7 +5,7 @@ from pydantic import ConfigDict
 class Settings(BaseSettings):
     """Application configuration loaded from environment variables."""
 
-    redis_url: str
+    redis_url: str = ""
     redis_TTL: int = 60  # cache time
     environment: str = "development"
 
