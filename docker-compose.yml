@@ -17,10 +17,10 @@ services:
     container_name: catfacts_api
     restart: always
     volumes:
-      - ./migrations:/app/migrations
-      - ./src:/app/src
-      - ./alembic.ini:/app/alembic.ini
-      - ./.env:/app/.env
+      - ./migrations:/src/migrations
+      - ./src:/src/src
+      - ./alembic.ini:/src/alembic.ini
+      - ./.env:/src/.env
     depends_on:
       - postgres
     env_file:
