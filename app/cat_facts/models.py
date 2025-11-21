@@ -1,16 +1,61 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime
-from sqlalchemy.sql import func
-from scr.database.base import Base
+from typing import Optional
+from datetime import datetime
+from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 
-class CatFact(Base):
-    __tablename__ = "cat_facts"
+from src.database.base_schema import BaseOutSchema
+from src.cat_facts.config import cat_fact_config as cfg
 
-    id = Column(Integer, primary_key=True, index=True)
-    fact = Column(Text, nullable=False)
-    length = Column(Integer, nullable=False)
-    source = Column(String(100), default="catfact.ninja")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    def __repr__(self):
-        return f"<CatFact(id={self.id}, fact='{self.fact[:50]}...')>"
+class CatFactCreate(BaseModel):
+    """DTO for creating a new local cat fact."""
+
+    text: str = Field(
+        ...,
+        description="Fact text",
+        min_length=cfg.min_text_length,
+        max_length=cfg.max_text_length,
+    )
+
+    image_url: Optional[HttpUrl] = Field(
+        None,
+        description="Optional image URL",
+        min_length=cfg.min_image_url_length,
+        max_length=cfg.max_image_url_length,
+    )
+
+
+class CatFactUpdate(BaseModel):
+    """DTO for partially updating a cat fact."""
+
+    text: Optional[str] = Field(
+        None,
+        description="Updated fact text",
+        min_length=cfg.min_text_length,
+        max_length=cfg.max_text_length,
+    )
+
+    image_url: Optional[HttpUrl] = Field(
+        None,
+        description="Updated image URL",
+        min_length=cfg.min_image_url_length,
+        max_length=cfg.max_image_url_length,
+    )
+
+
+class CatFactOut(BaseOutSchema):
+    """DTO returned for cat facts."""
+
+    text: str
+    image_url: Optional[str]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CatFactStatsOut(BaseOutSchema):
+    """DTO for returning statistics for a local cat fact."""
+
+    fact_id: int
+    request_count: int
+    last_requested_at: Optional[datetime]
+
+    model_config = ConfigDict(from_attributes=True)

@@ -1,12 +1,38 @@
 services:
-  web:
-    build: .
-    ports:
-      - "8000:8000"
+  postgres:
+    image: postgres:15
+    container_name: local_postgres
+    restart: always
     environment:
-      - DATABASE_URL=sqlite:///./cat_facts.db
-      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
-      - AZURE_CONTAINER_NAME=${AZURE_CONTAINER_NAME}
+      POSTGRES_USER: localuser
+      POSTGRES_PASSWORD: localpass
+      POSTGRES_DB: localdb
+    ports:
+      - "5433:5432"
     volumes:
-      - .:/app
-    command: uvicorn scr.main:app --host 0.0.0.0 --port 8000 --reload
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: ../../../../../Downloads
+    container_name: catfacts_api
+    restart: always
+    volumes:
+      - ./migrations:/app/migrations
+      - ./src:/app/src
+      - ./alembic.ini:/app/alembic.ini
+      - ./.env:/app/.env
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    environment:
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    command: >
+      uvicorn src.main:app
+      --host 0.0.0.0
+      --port ${PORT:-8080}
+
+volumes:
+  pgdata:

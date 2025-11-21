@@ -1,52 +1,69 @@
-from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import String, Integer, Text, ForeignKey, DateTime
 from datetime import datetime
-from .config import cat_facts_config as cfg
+
+from src.database.base import Base
+from src.database.base_schema import UpdatedMix
 
 
-class CatFactBase(BaseModel):
-    fact: str = Field(
-        ...,
-        min_length=cfg.min_fact_length,
-        max_length=cfg.max_fact_length,
-        description="Interesting fact about cats"
+class CatFact(Base, UpdatedMix):
+    """Local cat fact."""
+
+    __tablename__ = "cat_facts"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
     )
-    length: int = Field(
-        ...,
-        ge=cfg.min_length_value,
-        le=cfg.max_length_value,
-        description="Length of the fact text"
+
+    text: Mapped[str] = mapped_column(
+        Text,
+        nullable=False
     )
-    source: Optional[str] = Field("catfact.ninja", description="Source of the fact")
 
-
-class CatFactCreate(CatFactBase):
-    pass
-
-
-class CatFactUpdate(BaseModel):
-    fact: Optional[str] = Field(
-        None,
-        min_length=cfg.min_fact_length,
-        max_length=cfg.max_fact_length
+    image_url: Mapped[Optional[str]] = mapped_column(
+        String(300),
+        nullable=True
     )
-    length: Optional[int] = Field(
-        None,
-        ge=cfg.min_length_value,
-        le=cfg.max_length_value
+
+    stats: Mapped["CatFactStats"] = relationship(
+        back_populates="fact",
+        uselist=False,
+        cascade="all, delete"
     )
 
 
-class CatFactResponse(CatFactBase):
-    id: int
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+class CatFactStats(Base, UpdatedMix):
+    """Statistics for local cat facts."""
 
-    model_config = ConfigDict(from_attributes=True)
+    __tablename__ = "cat_fact_stats"
 
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
+    )
 
-class CatFactListResponse(BaseModel):
-    items: list[CatFactResponse]
-    total: int
-    page: int
-    size: int
+    fact_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("cat_facts.id"),
+        unique=True,
+        nullable=False
+    )
+
+    request_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0
+    )
+
+    last_requested_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=False),
+        nullable=True
+    )
+
+    fact: Mapped["CatFact"] = relationship(
+        back_populates="stats"
+    )

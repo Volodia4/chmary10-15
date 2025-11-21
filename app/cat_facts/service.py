@@ -1,57 +1,85 @@
-import requests
-from typing import List, Optional
-from sqlalchemy.orm import Session
-from .repository import CatFactRepository
-from .schema import CatFactCreate, CatFactResponse
-from .config import cat_facts_config
-from .models import CatFact
+# src/cat_facts/service.py
+
+from typing import Optional
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.cat_facts.repository import (
+    CatFactRepository,
+    CatFactStatsRepository,
+)
+from src.cat_facts.models import (
+    CatFactCreate,
+    CatFactOut,
+    CatFactStatsOut,
+)
 
 
 class CatFactService:
-    def __init__(self, db: Session):
-        self.repository = CatFactRepository(db)
-        self.api_url = cat_facts_config.api_url
-        self.timeout = cat_facts_config.timeout
+    """Service layer for cat facts and statistics."""
 
-    def fetch_from_external_api(self) -> CatFactCreate:
-        """Fetch random cat fact from external API"""
-        try:
-            response = requests.get(self.api_url, timeout=self.timeout)
-            response.raise_for_status()
-            data = response.json()
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.fact_repo = CatFactRepository(session)
+        self.stats_repo = CatFactStatsRepository(session)
 
-            return CatFactCreate(
-                fact=data['fact'],
-                length=data['length']
-            )
-        except requests.RequestException as e:
-            raise Exception(f"Failed to fetch from external API: {str(e)}")
+    async def create_fact(self, data: CatFactCreate) -> CatFactOut:
+        """Create a new local fact + initialize its statistics."""
 
-    def create_cat_fact(self, cat_fact: CatFactCreate) -> CatFact:
-        """Create a new cat fact in database"""
-        return self.repository.create_cat_fact(cat_fact)
+        payload = data.model_dump()
+        if payload.get("image_url"):
+            payload["image_url"] = str(payload["image_url"])
 
-    def get_cat_fact(self, id: int) -> Optional[CatFact]:
-        """Get cat fact by ID"""
-        return self.repository.get_by_id(id)
+        fact = await self.fact_repo.create(payload)
 
-    def get_all_cat_facts(self, skip: int = 0, limit: int = 100) -> List[CatFact]:
-        """Get all cat facts with pagination"""
-        return self.repository.get_all(skip=skip, limit=limit)
+        await self.stats_repo.create_initial(fact.id)
 
-    def fetch_and_save_fact(self) -> CatFact:
-        """Fetch from external API and save to database"""
-        external_fact = self.fetch_from_external_api()
-        return self.create_cat_fact(external_fact)
+        return CatFactOut.model_validate(fact)
 
-    def get_facts_by_length(self, min_length: Optional[int] = None, max_length: Optional[int] = None) -> List[CatFact]:
-        """Get facts filtered by length"""
-        return self.repository.get_by_fact_length(min_length, max_length)
+    async def get_local_random_fact(self) -> Optional[CatFactOut]:
+        """Return random local fact and update its statistics."""
 
-    def search_facts(self, search_term: str) -> List[CatFact]:
-        """Search facts by text content"""
-        return self.repository.search_facts(search_term)
+        fact = await self.fact_repo.get_random()
+        if not fact:
+            return None
 
-    def get_facts_count(self) -> int:
-        """Get total number of facts in database"""
-        return self.repository.count()
+        # Update statistics
+        await self.stats_repo.increment_request_count(fact.id)
+
+        return CatFactOut.model_validate(fact)
+
+    async def get_fact(self, source: str) -> dict:
+        """
+        Return a fact depending on source:
+        - external → fetch from APIs
+        - local → fetch from DB + update stats
+        """
+
+        if source == "external":
+            return await self.get_external_fact()
+
+        # Local
+        fact = await self.get_local_random_fact()
+        if not fact:
+            return {
+                "message": "No local facts available",
+                "source": "local"
+            }
+
+        return {
+            "id": fact.id,
+            "text": fact.text,
+            "image_url": fact.image_url,
+            "created_at": fact.created_at,
+            "updated_at": fact.updated_at,
+            "source": "local"
+        }
+
+    async def get_fact_stats(self, fact_id: int) -> Optional[CatFactStatsOut]:
+        """Return statistics for a specific fact."""
+
+        stats = await self.stats_repo.get_by_fact_id(fact_id)
+        if not stats:
+            return None
+
+        return CatFactStatsOut.model_validate(stats)

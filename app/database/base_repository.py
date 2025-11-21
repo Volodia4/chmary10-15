@@ -1,43 +1,57 @@
-from sqlalchemy.orm import Session
-from typing import TypeVar, Type, Generic, List, Optional
-from .base import Base
+# src/database/base_repository.py
+
+from typing import Type, TypeVar, Generic, Optional, List
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update, delete
+
+from src.database.base import Base
+
 
 ModelType = TypeVar("ModelType", bound=Base)
 
+
 class BaseRepository(Generic[ModelType]):
-    def __init__(self, model: Type[ModelType], db: Session):
+    """Generic CRUD repository for SQLAlchemy ORM models."""
+
+    def __init__(self, model: Type[ModelType], session: AsyncSession):
         self.model = model
-        self.db = db
+        self.session = session
 
-    def get_by_id(self, id: int) -> Optional[ModelType]:
-        return self.db.query(self.model).filter(self.model.id == id).first()
+    async def get_all(self) -> List[ModelType]:
+        """Return all records of the model."""
+        stmt = select(self.model)
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
 
-    def get_all(self, skip: int = 0, limit: int = 100) -> List[ModelType]:
-        return self.db.query(self.model).offset(skip).limit(limit).all()
+    async def get_by_id(self, obj_id: int) -> Optional[ModelType]:
+        """Return a record by primary key."""
+        stmt = select(self.model).where(self.model.id == obj_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
-    def create(self, obj_in: dict) -> ModelType:
-        db_obj = self.model(**obj_in)
-        self.db.add(db_obj)
-        self.db.commit()
-        self.db.refresh(db_obj)
-        return db_obj
+    async def create(self, data: dict) -> ModelType:
+        """Create and store a new record."""
+        obj = self.model(**data)
+        self.session.add(obj)
+        await self.session.commit()
+        await self.session.refresh(obj)
+        return obj
 
-    def update(self, id: int, obj_in: dict) -> Optional[ModelType]:
-        db_obj = self.get_by_id(id)
-        if db_obj:
-            for field, value in obj_in.items():
-                setattr(db_obj, field, value)
-            self.db.commit()
-            self.db.refresh(db_obj)
-        return db_obj
+    async def update(self, obj_id: int, data: dict) -> Optional[ModelType]:
+        """Update an existing record and return the updated model instance."""
+        stmt = (
+            update(self.model)
+            .where(self.model.id == obj_id)
+            .values(**data)
+            .returning(self.model)
+        )
+        result = await self.session.execute(stmt)
+        updated = result.scalar_one_or_none()
+        await self.session.commit()
+        return updated
 
-    def delete(self, id: int) -> bool:
-        db_obj = self.get_by_id(id)
-        if db_obj:
-            self.db.delete(db_obj)
-            self.db.commit()
-            return True
-        return False
-
-    def count(self) -> int:
-        return self.db.query(self.model).count()
+    async def delete(self, obj_id: int) -> None:
+        """Delete a record by ID."""
+        stmt = delete(self.model).where(self.model.id == obj_id)
+        await self.session.execute(stmt)
+        await self.session.commit()

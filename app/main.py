@@ -1,49 +1,51 @@
-from fastapi import FastAPI
-from app.database.utils import create_tables
-from app.external_api import router as external_router
-from app.cat_facts.router import router as cat_facts_router
+from contextlib import asynccontextmanager
 
-# Create database tables
-create_tables()
+# from src.core.logging.logging_config import setup_logging
+from src.database.base import _init_db_models # noqa
+from fastapi import FastAPI
+from src.core import router as common_routes
+from src.storage import router as storage_router
+from src.external_api import router as external_router
+from src.cat_facts import router as cat_fact_router
+from src.cache import router as cache_router
+from alembic.config import Config
+from alembic import command
+# from src.core.logging.sentry import init_sentry
+
+
+def run_migrations():
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # init_sentry()
+    # setup_logging()
+    # # Initialize DB tables on startup
+    # await _init_db_models()
+    yield
+
+
+run_migrations()
+
 
 app = FastAPI(
-    title="FastAPI Cat Facts & External APIs",
-    description="Comprehensive API with external integrations and database operations",
-    version="2.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    title="Lab FastAPI Project",
+    description="Lab project with FastAPI and Swagger UI",
+    version="0.1.0",
+    # lifespan=lifespan
 )
 
-# Include routers
+app.include_router(common_routes.router)
+
+# Include storage module routes and external api router
+app.include_router(storage_router.router)
 app.include_router(external_router.router)
-app.include_router(cat_facts_router.router)
+app.include_router(cat_fact_router.router)
+app.include_router(cache_router.router)
+
 
 @app.get("/")
 def root():
-    return {
-        "message": "Welcome to FastAPI Cat Facts API",
-        "endpoints": {
-            "external_api": "/docs#/External%20API",
-            "cat_facts": "/docs#/Cat%20Facts%20Database"
-        }
-    }
-
-@app.get("/health")
-def health_check():
-    return {
-        "status": "healthy",
-        "service": "FastAPI Cat Facts API",
-        "version": "2.0.0"
-    }
-
-@app.get("/info")
-def api_info():
-    return {
-        "name": "FastAPI Cat Facts API",
-        "version": "2.0.0",
-        "description": "Integration with external APIs and database operations",
-        "modules": [
-            "external_api - External API integrations",
-            "cat_facts - Database operations with Cat Facts"
-        ]
-    }
+    return {"status": "ok", "message": "FastAPI is running!"}

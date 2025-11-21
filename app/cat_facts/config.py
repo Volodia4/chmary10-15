@@ -2,18 +2,16 @@ from dataclasses import dataclass
 
 
 @dataclass
-class CatFactsConfig:
-    """Configuration for Cat Facts API and models"""
+class CatFactConfig:
+    """Configuration for cat facts validation."""
 
-    # API Configuration
-    api_url: str = "https://catfact.ninja/fact"
-    timeout: int = 10
+    # Limits for fact text
+    min_text_length: int = 5
+    max_text_length: int = 500
 
-    # Model constraints
-    min_fact_length: int = 5
-    max_fact_length: int = 500
-    min_length_value: int = 1
-    max_length_value: int = 1000
+    # Limits for image URLs
+    min_image_url_length: int = 10
+    max_image_url_length: int = 500
 
 
-cat_facts_config = CatFactsConfig()
+cat_fact_config = CatFactConfig()
